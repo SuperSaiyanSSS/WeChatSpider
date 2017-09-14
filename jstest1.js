@@ -7,6 +7,50 @@ var flag = true;
 
 var http = require('http');
 
+
+var MongoClient = require('mongodb').MongoClient;
+var DB_CONN_STR = 'mongodb://localhost:27017/alex'; // 数据库为 runoob
+
+
+
+//获取当前时间
+function getNowFormatDate() {
+    var date = new Date();
+    var seperator1 = "-";
+    var seperator2 = ":";
+    var month = date.getMonth() + 1;
+    var strDate = date.getDate();
+    if (month >= 1 && month <= 9) {
+        month = "0" + month;
+    }
+    if (strDate >= 0 && strDate <= 9) {
+        strDate = "0" + strDate;
+    }
+    var currentdate = date.getFullYear() + seperator1 + month + seperator1 + strDate
+        + " " + date.getHours() + seperator2 + date.getMinutes()
+        + seperator2 + date.getSeconds();
+    return currentdate;
+}
+
+
+
+var insertData = function(db, callback) {
+    //连接到表 site
+    var collection = db.collection('site');
+    //插入数据
+    data = articleLinkArr;
+    collection.insert(data, function(err, result) {
+        if(err)
+        {
+            console.log('Error:'+ err);
+            return;
+        }
+        callback(result);
+    });
+};
+
+
+
 module.exports = {
         token: Date.now(),
         summary: function () {
@@ -81,7 +125,7 @@ module.exports = {
         //入口函数
         replaceServerResDataAsync: function (req, res, serverResData, callback) {
             console.log("抓捕到数据包。。。");
-            console.log(articleLinkArr.size);
+          //  console.log(articleLinkArr.size);
             if(/mp\/profile_ext\?action=home/i.test(req.url)){
                 try{
                     var historyHomePage = /var msgList = \'(.*?)\';/;
@@ -119,17 +163,29 @@ module.exports = {
                         console.log("公众号的名字是————————", nickname);
 
                         //当前历史页的文章各种信息
+                        var getdatetime = getNowFormatDate();
                         var articleJson = {
                             "title": title,
                             "author": author,
                             "content_url": content_url,
                             "datetime": datetime,
-                            "id": id
+                            "id": id,
+                            "getdatetime": getdatetime
                         };
 
-                        articleLinkArr.push(nickname);
+                 //       articleLinkArr.push(nickname);
                         articleLinkArr.push(articleJson);
                     }
+
+                    MongoClient.connect(DB_CONN_STR, function(err, db) {
+                        console.log("连接MongoDB成功！");
+                        insertData(db, function(result) {
+                            console.log(result);
+                            db.close();
+                            articleLinkArr = [];
+                        });
+                    });
+
 
                     var appmsg_token_pattern = /window.appmsg_token = \"(.*?)\";/;
                     var appmsg_token = appmsg_token_pattern.exec(serverResData.toString())[1];
@@ -186,15 +242,19 @@ module.exports = {
                             console.log(datetime);
 
                             //当前历史页的文章各种信息
+                            var getdatetime = getNowFormatDate();
                             var articleJson = {
                                 "title": title,
                                 "author": author,
                                 "content_url": content_url,
                                 "datetime": datetime,
-                                "id": id
+                                "id": id,
+                                "getdatetime": getdatetime
                             };
 
+                            console.log("__________", articleLinkArr);
                             articleLinkArr.push(articleJson);
+                            console.log("__________", articleLinkArr);
 
                         }
                         catch (e){
@@ -202,6 +262,16 @@ module.exports = {
                             console.log("获取某个属性时出错！ 可能为短消息，不是历史文章", 'red');
                         }
                     }
+
+                    MongoClient.connect(DB_CONN_STR, function(err, db) {
+                        console.log("连接MongoDB成功！");
+                        insertData(db, function(result) {
+                            console.log(result);
+                            db.close();
+                            articleLinkArr = [];
+                        });
+                    });
+
                     console.log("已成功保存下一页历史消息（原json）");
 
                     callback(newContent);
